@@ -1,0 +1,161 @@
+---
+title: "Predict Quality of Excercise"
+author: "Vineetha.Varghese"
+date: "July 9, 2016"
+output: 
+  html_document: 
+    keep_md: true
+---
+##Synopsis
+In this project we will predict the quality of the barbell lifts performed by participants. Based on the training data we run 3 different models and find that Random Forest performs with the best accuracy (99%).
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Load libraries
+```{r, results='hide', message=FALSE, warning=FALSE}
+#Load libraries needed for this script
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rpart)
+library(gbm)
+library(knitr)
+```
+
+##Data
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+```{r}
+#Download training data
+trainingFileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv?accessType = DOWNLOAD"
+download.file(trainingFileURL, destfile="training.csv")
+
+#Download testing data
+testingFileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv?accessType = DOWNLOAD"
+download.file(testingFileURL, destfile="testing.csv")
+
+```
+
+##Loading and preprocessing the data
+Read the csv file and store the data into variables, changing missing and empty spaves to 'NA' during the process.
+
+```{r}
+#Load the data to variables change all empty spaces to 'NA'
+trainingActivity <- read.csv(file = "training.csv", header = TRUE, na.strings=c(""," ","NA"))
+testingActivity <- read.csv(file = "testing.csv", header = TRUE, na.strings=c(""," ","NA"))
+```
+
+We will remove the columns that have any NA values. We will find on exploring the data that those columns have more that 90% NA thereby assuming their data will not have significant impact on 'classe'. Also remove the first 7 columns which do not have an impact on the 'classe' field.
+
+```{r}
+naCols <- sapply(names(trainingActivity), function(x) any(is.na(trainingActivity[,x]) == TRUE))
+naColnames <- names(naCols)[naCols == FALSE]
+finalColList <- naColnames[-(1:7)]
+finalColList
+
+#Build the trainging dataset
+trainingActivity <- trainingActivity[,finalColList]
+
+#change the classe variable to a factor variable
+trainingActivity$classe <- as.factor(trainingActivity$classe)
+```
+
+##Data Splitting and  3-fold Cross Validation
+Split the training data to 60% training and 40% testing. We will use the testing set to do our own validation on how accurate the model we finally choose is.
+
+```{r}
+dim(trainingActivity)
+inTrain <- createDataPartition(y=trainingActivity$classe,
+                               p=0.6, list=FALSE)
+training <- trainingActivity[inTrain,]
+testing <- trainingActivity[-inTrain,]
+dim(training)
+dim(testing)
+```
+
+Here we will do a 3 fold cross validation.
+
+```{r}
+train_control <- trainControl(method='cv', number=3)
+```
+
+Set seed for reproducibility.
+
+```{r}
+set.seed(29)
+```
+
+##Model Selection
+We will run the training data against 3 models Recursive Partitioning and Regression Trees, Random Forest and  Generalized Boosted Regression Models.
+
+```{r, results='hide', cache=TRUE}
+#Model Fit
+mod_fit_rpart <- train(classe ~ ., data=training, method="rpart", trControl=train_control)
+mod_fit_rf <- train(classe ~ ., data=training, method= "rf", trControl=train_control)
+mod_fit_gbm <- train(classe ~ ., data=training, method= "gbm", verbose=F, trControl=train_control)
+```
+
+We will check with the training and testing data set to see which of the 3 models give the best fit.
+
+**Recursive Partitioning and Regression Trees**
+```{r}
+confusionMatrix(predict(mod_fit_rpart), training$classe)
+testrpart <- confusionMatrix(predict(mod_fit_rpart, testing), testing$classe)
+testrpart$overall['Accuracy'] 
+```
+
+**Generalized Boosted Regression**
+```{r}
+traingbm <- confusionMatrix(predict(mod_fit_gbm), training$classe)
+testgbm <- confusionMatrix(predict(mod_fit_gbm, testing), testing$classe)
+testgbm$overall['Accuracy'] 
+```
+
+**Random Forest**
+```{r}
+confusionMatrix(predict(mod_fit_rf), training$classe)
+testrf <- confusionMatrix(predict(mod_fit_rf, testing), testing$classe)
+testrf$overall['Accuracy'] 
+```
+
+We see that the random forest model gives the best fit with an overall accuracy of `r (testrf$overall['Accuracy'])*100`% followed by Generalised Boosting Model gives an accuracy of `r (testgbm$overall['Accuracy'])*100`%. Rpart is a poor fit with an accuracy of `r (testrpart$overall['Accuracy'])*100`%.
+
+*Random Forest testing details*
+
+```{r}
+testrf
+```
+
+Hence we select **Random Forest** as our prediction model.
+
+#Out of Sample Error
+```{r, echo=FALSE}
+plot(mod_fit_rf, log="y")
+```
+
+```{r}
+testPred <- predict(mod_fit_rf, testing)
+OOSAccr <- sum(testPred == testing$classe)/length(testPred)
+1- OOSAccr
+```
+
+We get the accuracy from numberof predictions we got right divided by the number of predictions on our test sample. The out of sample error is `r (1- OOSAccr)*100`%. 
+
+##Prediction
+We will now run our chosen random forest model against the test data provided.
+
+```{r}
+pred <- predict(mod_fit_rf, testingActivity)
+pred
+```
+
+##Conclusion
+Based on the Random forest model in this instance we get a near perfect `r (testrf$overall['Accuracy'])*100` accurate prediction.
+
