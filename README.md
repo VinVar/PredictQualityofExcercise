@@ -6,3 +6,5 @@ Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible t
 This analysis will show the chosen model to predict the 'classe' variable for the test data.
 
 This repository contains the original activityData.Rmd file, the html and the .md file. To view the details of this Analysis click on the activityData.md link in this repository.
+
+Or click http://htmlpreview.github.io/?https://github.com/VinVar/PredictQualityofExcercise/blob/master/activityData.html to view the page.
